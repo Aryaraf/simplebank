@@ -39,16 +39,6 @@ func (q *Queries) CreateTransfer(ctx context.Context, arg CreateTransferParams) 
 	return i, err
 }
 
-const deleteTransfres = `-- name: DeleteTransfres :exec
-DELETE FROM transfers
-WHERE id = $1
-`
-
-func (q *Queries) DeleteTransfres(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteTransfres, id)
-	return err
-}
-
 const getTransfer = `-- name: GetTransfer :one
 SELECT id, from_account_id, to_account_id, amount, created_at FROM transfers
 WHERE id = $1 LIMIT 1
@@ -67,20 +57,30 @@ func (q *Queries) GetTransfer(ctx context.Context, id int64) (Transfer, error) {
 	return i, err
 }
 
-const listTransfer = `-- name: ListTransfer :many
+const listTransfers = `-- name: ListTransfers :many
 SELECT id, from_account_id, to_account_id, amount, created_at FROM transfers
+WHERE 
+    from_account_id = $1 OR
+    to_account_id = $2
 ORDER BY id
-LIMIT $1
-OFFSET $2
+LIMIT $3
+OFFSET $4
 `
 
-type ListTransferParams struct {
-	Limit  int32
-	Offset int32
+type ListTransfersParams struct {
+	FromAccountID int64
+	ToAccountID   int64
+	Limit         int32
+	Offset        int32
 }
 
-func (q *Queries) ListTransfer(ctx context.Context, arg ListTransferParams) ([]Transfer, error) {
-	rows, err := q.db.Query(ctx, listTransfer, arg.Limit, arg.Offset)
+func (q *Queries) ListTransfers(ctx context.Context, arg ListTransfersParams) ([]Transfer, error) {
+	rows, err := q.db.Query(ctx, listTransfers,
+		arg.FromAccountID,
+		arg.ToAccountID,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -103,21 +103,4 @@ func (q *Queries) ListTransfer(ctx context.Context, arg ListTransferParams) ([]T
 		return nil, err
 	}
 	return items, nil
-}
-
-const updateTransfer = `-- name: UpdateTransfer :exec
-UPDATE transfers
-  SET amount = $2
-WHERE id = $1
-RETURNING id, from_account_id, to_account_id, amount, created_at
-`
-
-type UpdateTransferParams struct {
-	ID     int64
-	Amount int64
-}
-
-func (q *Queries) UpdateTransfer(ctx context.Context, arg UpdateTransferParams) error {
-	_, err := q.db.Exec(ctx, updateTransfer, arg.ID, arg.Amount)
-	return err
 }
