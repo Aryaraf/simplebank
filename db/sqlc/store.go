@@ -13,10 +13,10 @@ type Store struct {
 	realDB *pgx.Conn
 }
 
-func NewStore(db DBTX) *Store {
+func NewStore(db *pgx.Conn) *Store {
 	return &Store{
 		db: db,
-		realDB: db.(*pgx.Conn), 
+		realDB: db, 
 		Queries: New(db),
 	}
 }
