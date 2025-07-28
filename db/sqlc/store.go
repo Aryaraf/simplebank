@@ -93,52 +93,35 @@ func (store *Store) TransferTx(ctx context.Context, arg TranferTxParams) (Transf
 		}
 
 		if arg.FromAccountID < arg.ToAccountID {
-			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
-				AccountID: arg.FromAccountID,
-				Amount:    -arg.Amount,
-			})
-			if err != nil {
-				return err
-			}
-
-			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
-				AccountID: arg.ToAccountID,
-				Amount:    arg.Amount,
-			})
-			if err != nil {
-				return err
-			}
+			result.FromAccount, result.ToAccount, err = addMoney(ctx, q, arg.FromAccountID, -arg.Amount, arg.ToAccountID, arg.Amount)
 		} else {
-			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
-				AccountID: arg.ToAccountID,
-				Amount:    arg.Amount,
-			})
-		
-			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
-				AccountID: arg.FromAccountID,
-				Amount:    -arg.Amount,
-			})
-			
-			if err != nil {
-				return err
-			}
+			result.ToAccount, result.FromAccount, err = addMoney(ctx, q, arg.ToAccountID, arg.Amount, arg.FromAccountID, -arg.Amount)			
 		}
-
-		// Fetch updated fromAccount
-		// result.FromAccount, err = q.GetAccount(ctx, arg.FromAccountID)
-		// if err != nil {
-		// 	fmt.Println("ERROR fetching FromAccount:", err)
-		// 	return err
-		// }
-
-		// Fetch updated toAccount
-		// result.ToAccount, err = q.GetAccount(ctx, arg.ToAccountID)
-		// if err != nil {
-		// 	fmt.Println("ERROR fetching ToAccount:", err)
-		// }
-
 		return nil
 	})
 
 	return result, err
+}
+
+func addMoney(
+	ctx context.Context,
+	q *Queries,
+	accountID1 int64,
+	amount1 int64,
+	accountID2 int64,
+	amount2 int64,
+)(account1 Account, account2 Account, err error){
+	account1, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+		AccountID: accountID1,
+		Amount: amount1,
+	})
+	if err != nil{
+		return
+	}
+
+	account2, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+		AccountID: accountID2,
+		Amount: amount2,
+	})
+	return
 }
