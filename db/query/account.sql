@@ -20,9 +20,20 @@ OFFSET $2;
 
 -- name: UpdateAccount :one
 UPDATE accounts
-  SET balance = $2
+SET balance = $2
 WHERE id = $1
 RETURNING *;
+
+-- name: AddAccountBalance :one
+UPDATE accounts
+SET balance = balance + sqlc.arg(amount)
+WHERE id = sqlc.arg(account_id)
+RETURNING *;
+
+-- name: UpdateAccountBalance :exec
+UPDATE accounts
+SET balance = balance + sqlc.arg(amount)
+WHERE id = sqlc.arg(id);
 
 -- name: DeleteAccount :exec
 DELETE FROM accounts
