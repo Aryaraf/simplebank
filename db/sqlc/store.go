@@ -3,21 +3,22 @@ package db
 import (
 	"context"
 	"fmt"
-	
+
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Store struct {
 	*Queries
-	db DBTX
-	realDB *pgx.Conn
+	db     DBTX
+	realDB *pgxpool.Pool
 }
 
-func NewStore(db *pgx.Conn) *Store {
+func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{
-		db: db,
-		realDB: db, 
-		Queries: New(db),
+		db:      pool,
+		realDB:  pool,
+		Queries: New(pool),
 	}
 }
 
@@ -41,17 +42,17 @@ func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
 }
 
 type TranferTxParams struct {
-	FromAccountID 	int64 `json:"from_account_id"`
-	ToAccountID 	int64 `json:"to_account_id"`
-	Amount 			int64 `json:"amount"`
+	FromAccountID int64 `json:"from_account_id"`
+	ToAccountID   int64 `json:"to_account_id"`
+	Amount        int64 `json:"amount"`
 }
 
 type TransferTxResult struct {
-	Transfer 		Transfer	`json:"transfer"`
-	FromAccountID 	Account 	`json:"from_account"`
-	ToAccountID 	Account 	`json:"to_account"`
-	FromEntry 		Entry 		`json:"from_entry"`
-	ToEntry 		Entry 		`json:"to_entry"`
+	Transfer      Transfer `json:"transfer"`
+	FromAccount Account  `json:"from_account"`
+	ToAccount   Account  `json:"to_account"`
+	FromEntry     Entry    `json:"from_entry"`
+	ToEntry       Entry    `json:"to_entry"`
 }
 
 func (store *Store) TransferTx(ctx context.Context, arg TranferTxParams) (TransferTxResult, error) {
@@ -60,32 +61,81 @@ func (store *Store) TransferTx(ctx context.Context, arg TranferTxParams) (Transf
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
 
+		// Create transfer record
 		result.Transfer, err = q.CreateTransfer(ctx, CreateTransferParams{
 			FromAccountID: arg.FromAccountID,
-			ToAccountID:  arg.ToAccountID,
-			Amount: arg.Amount,
+			ToAccountID:   arg.ToAccountID,
+			Amount:        arg.Amount,
 		})
-		if err != nil{
+		if err != nil {
+			fmt.Println("ERROR creating CreateTransfer:", err)
 			return err
 		}
 
+		// Create from entry
 		result.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
-			AccountID: 	arg.FromAccountID,
-			Amount: 	-arg.Amount,
+			AccountID: arg.FromAccountID,
+			Amount:    -arg.Amount,
 		})
-
-		if err != nil{
+		if err != nil {
+			fmt.Println("ERROR creating FromEntry:", err)
 			return err
 		}
 
+		// Create to entry
 		result.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
-			AccountID: 	arg.ToAccountID,
-			Amount: 	arg.Amount,
+			AccountID: arg.ToAccountID,
+			Amount:    arg.Amount,
 		})
-
-		if err != nil{
+		if err != nil {
+			fmt.Println("ERROR creating ToEntry:", err)
 			return err
 		}
+
+		if arg.FromAccountID < arg.ToAccountID {
+			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				AccountID: arg.FromAccountID,
+				Amount:    -arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
+
+			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				AccountID: arg.ToAccountID,
+				Amount:    arg.Amount,
+			})
+			if err != nil {
+				return err
+			}
+		} else {
+			result.ToAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				AccountID: arg.ToAccountID,
+				Amount:    arg.Amount,
+			})
+		
+			result.FromAccount, err = q.AddAccountBalance(ctx, AddAccountBalanceParams{
+				AccountID: arg.FromAccountID,
+				Amount:    -arg.Amount,
+			})
+			
+			if err != nil {
+				return err
+			}
+		}
+
+		// Fetch updated fromAccount
+		// result.FromAccount, err = q.GetAccount(ctx, arg.FromAccountID)
+		// if err != nil {
+		// 	fmt.Println("ERROR fetching FromAccount:", err)
+		// 	return err
+		// }
+
+		// Fetch updated toAccount
+		// result.ToAccount, err = q.GetAccount(ctx, arg.ToAccountID)
+		// if err != nil {
+		// 	fmt.Println("ERROR fetching ToAccount:", err)
+		// }
 
 		return nil
 	})

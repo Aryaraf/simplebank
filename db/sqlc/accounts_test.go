@@ -57,7 +57,7 @@ func TestUpdateAccount(t *testing.T) {
     }
 
     account2, err := testQueries.UpdateAccount(context.Background(), arg)
-    require.NoError(t, err)
+	require.NoError(t, err)
     require.NotEmpty(t, account2)
 
     require.Equal(t, account1.ID, account2.ID)

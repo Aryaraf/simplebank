@@ -9,6 +9,31 @@ import (
 	"context"
 )
 
+const addAccountBalance = `-- name: AddAccountBalance :one
+UPDATE accounts
+SET balance = balance + $1
+WHERE id = $2
+RETURNING id, owner, balance, currency, created_at
+`
+
+type AddAccountBalanceParams struct {
+	Amount    int64
+	AccountID int64
+}
+
+func (q *Queries) AddAccountBalance(ctx context.Context, arg AddAccountBalanceParams) (Account, error) {
+	row := q.db.QueryRow(ctx, addAccountBalance, arg.Amount, arg.AccountID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.Owner,
+		&i.Balance,
+		&i.Currency,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO accounts (
   owner,
@@ -107,7 +132,7 @@ func (q *Queries) ListAccounts(ctx context.Context, arg ListAccountsParams) ([]A
 
 const updateAccount = `-- name: UpdateAccount :one
 UPDATE accounts
-  SET balance = $2
+SET balance = $2
 WHERE id = $1
 RETURNING id, owner, balance, currency, created_at
 `
@@ -128,4 +153,20 @@ func (q *Queries) UpdateAccount(ctx context.Context, arg UpdateAccountParams) (A
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const updateAccountBalance = `-- name: UpdateAccountBalance :exec
+UPDATE accounts
+SET balance = balance + $1
+WHERE id = $2
+`
+
+type UpdateAccountBalanceParams struct {
+	Amount int64
+	ID     int64
+}
+
+func (q *Queries) UpdateAccountBalance(ctx context.Context, arg UpdateAccountBalanceParams) error {
+	_, err := q.db.Exec(ctx, updateAccountBalance, arg.Amount, arg.ID)
+	return err
 }
